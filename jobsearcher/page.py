@@ -12,9 +12,9 @@ dark > light, persisted under localStorage themeMode; html.dark /
 html.light classes force a palette, the duplicated palette blocks must
 stay in sync (checked by looking at them together).
 
-Insights column: one AI pill per annotated row; clicking expands an
-insdetail panel with salary/YOE tags, stack and the full note. The
-column header sorts annotated-first; the toolbar has an AI-tag filter
+Insights column: inline AI tags per annotated row (remote match, salary,
+YOE) — no expandable panel, no prose. The column header sorts
+annotated-first; the toolbar has an AI-tag filter
 (#aif: annotated / remote-global / remote-region / salary).
 """
 
@@ -190,23 +190,13 @@ WEB_PAGE = """<!doctype html>
   .yoe .known { background: var(--yoe-soft); color: var(--yoe-fg); border-radius: 6px; padding: 1px 8px;
                 font-size: 12px; font-weight: 600; }
   .yoe .na { color: var(--faint); font-size: 12px; }
-  /* AI Insights: one quiet pill per row (colored by remote match); click
-     expands the full annotation — salary/YOE tags, stack, whole note. */
-  .ins { max-width: 300px; font-size: 11.5px; color: var(--sm); }
-  .aipill { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--ok-border);
-            border-radius: 999px; padding: 2px 9px; background: var(--ok-soft); color: var(--ok);
-            font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-  .aipill.rem-r { border-color: var(--bad-border); background: var(--bad-soft); color: var(--bad); }
-  .aipill .c { font-weight: 400; opacity: .8; }
-  .insdetail { margin-top: 5px; padding: 7px 9px; border: 1px solid var(--border);
-               border-radius: 8px; background: var(--surface-2); font-size: 11px;
-               color: var(--sm); line-height: 1.5; }
-  .insdetail .tag { display: inline-block; border: 1px solid var(--border); border-radius: 999px;
-                    padding: 1px 8px; margin: 1px 3px 1px 0; background: var(--surface); font-size: 10.5px;
-                    color: var(--fg-soft); white-space: nowrap; }
-  .insdetail .tag.yoe { border-color: var(--yoe-border); background: var(--yoe-soft); color: var(--yoe-fg); }
-  .insdetail .stk { margin: 4px 0 0; font-size: 10.5px; color: var(--fg); font-weight: 600; }
-  .insdetail .note { margin: 3px 0 0; color: var(--sm); }
+  /* AI Insights: inline tags per row, no prose — remote tag colored by
+     remote match, plus salary/YOE tags where the model filled them. */
+  .ins { max-width: 300px; font-size: 11.5px; color: var(--sm); white-space: nowrap; }
+  .ins .tag { display: inline-block; border: 1px solid var(--border); border-radius: 999px;
+              padding: 1px 8px; margin: 1px 3px 1px 0; background: var(--surface); font-size: 10.5px;
+              color: var(--fg-soft); white-space: nowrap; }
+  .ins .tag.yoe { border-color: var(--yoe-border); background: var(--yoe-soft); color: var(--yoe-fg); }
   .ins .na { color: var(--faint); font-size: 12px; }
   mark { background: var(--mark-bg); color: var(--mark-fg); border-radius: 2px; padding: 0 1px; }
   #empty { display: none; text-align: center; color: var(--faint); padding: 34px 10px; font-size: 13.5px; }
@@ -312,7 +302,7 @@ WEB_PAGE = """<!doctype html>
           <th onclick="sortBy('Title')">Title</th>
           <th onclick="sortBy('Location')">Location</th>
           <th onclick="sortBy('YOE')">Max YOE</th>
-          <th onclick="sortBy('AIInsights')" title="AI annotation (Gemini Flash-Lite); click to sort — annotated roles first. Click a row's pill for the full note">Insights</th>
+          <th onclick="sortBy('AIInsights')" title="AI annotation (Gemini Flash-Lite); click to sort — annotated roles first">Insights</th>
           <th onclick="sortBy('ATS')">Source</th>
           <th class="nosort">Apply</th>
         </tr>
@@ -551,14 +541,7 @@ function rowEl(j, url, q) {
   const remTag = gc ? `<span class="tag${remCls}">${esc(gc)}</span>` : '';
   const salTag = j.AI_Salary ? `<span class="tag">${esc(j.AI_Salary)}</span>` : '';
   const yoeTag = j.AI_YOE && j.AI_YOE !== 'n/a' ? `<span class="tag yoe">${esc(j.AI_YOE)}</span>` : '';
-  const stkLine = j.AI_Stack ? `<div class="stk">${esc(j.AI_Stack)}</div>` : '';
-  const noteLine = j.AI_Note ? `<div class="note">${esc(j.AI_Note)}</div>` : '';
   const annotated = hasInsights(j);
-  // Collapsed cell = one pill; the detail panel holds everything else. If
-  // the model annotated ONLY the remote field, repeat it in the detail so
-  // expanding isn't empty.
-  let detail = salTag + yoeTag + stkLine + noteLine;
-  if (!detail) detail = remTag;
   tr.innerHTML =
     `<td class="act">` +
     `<button type="button" class="pill ok${isA ? ' on' : ''}" title="${isA ? 'Unmark as applied' : 'Mark as applied'}" aria-label="${isA ? 'Unmark as applied' : 'Mark as applied'}">✓</button>` +
@@ -572,24 +555,13 @@ function rowEl(j, url, q) {
     `<td>${hl(j.Location, q)}</td>` +
     `<td class="yoe">${y === 'n/a' ? '<span class="na">n/a</span>' : `<span class="known">${esc(y)} yr</span>`}</td>` +
     `<td class="ins">` +
-    (annotated
-      ? `<button type="button" class="aipill${remCls}" title="Show/hide the full AI annotation">` +
-        `✦ ${gc ? esc(gc) : 'AI'} <span class="c">▾</span></button>` +
-        `<div class="insdetail hidden">${detail}</div>`
-      : '<span class="na">n/a</span>') +
+    (annotated ? remTag + salTag + yoeTag : '<span class="na">n/a</span>') +
     `</td>` +
     `<td>${esc(j.ATS)}</td>` +
     `<td class="act"><a class="go" href="${esc(url)}" target="_blank" rel="noopener">Apply ↗</a></td>`;
   const [pA, pO] = tr.querySelectorAll('.pill');
   pA.onclick = () => toggleApply(url);
   pO.onclick = () => toggleOff(url);
-  const pill = tr.querySelector('.aipill');
-  if (pill) pill.onclick = () => {
-    const d = tr.querySelector('.insdetail');
-    const opening = d.classList.contains('hidden');
-    d.classList.toggle('hidden');
-    pill.querySelector('.c').textContent = opening ? '▴' : '▾';
-  };
   return tr;
 }
 
