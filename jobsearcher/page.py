@@ -308,6 +308,7 @@ WEB_PAGE = """<!doctype html>
         <tr>
           <th class="nosort">Status</th>
           <th onclick="sortBy('Company')">Company</th>
+          <th onclick="sortBy('Posted')" class="desc" title="Posting date from the source where available; n/a sorts last (default sort: newest first)">Posted</th>
           <th onclick="sortBy('Title')">Title</th>
           <th onclick="sortBy('Location')">Location</th>
           <th onclick="sortBy('YOE')">Max YOE</th>
@@ -335,7 +336,9 @@ let offrole = LS.get('offRoleJobs');
 const saveApplied = () => LS.set('appliedJobs', applied);
 const saveOff = () => LS.set('offRoleJobs', offrole);
 
-let JOBS = [], SORT = null, DESC = false;
+// Default sort: Posted, newest first (the dashboard's ask). Click a header
+// to re-sort; the ↓ arrow flips any column's direction.
+let JOBS = [], SORT = 'Posted', DESC = true;
 let renderTimer = null;
 // View state: 'active' (default — nothing you've marked), 'applied', 'off'
 // or 'all'. Remembered per-browser so Not-for-me stays out of the default
@@ -476,6 +479,13 @@ function hasInsights(j) {
 }
 
 function cmp(a, b) {
+  if (SORT === 'Posted') {
+    // Date strings compare lexicographically on YYYY-MM-DD; missing
+    // ('n/a' or absent) always sorts last regardless of direction.
+    const av = (a.Posted && a.Posted !== 'n/a') ? a.Posted : '\uffff';
+    const bv = (b.Posted && b.Posted !== 'n/a') ? b.Posted : '\uffff';
+    return av.localeCompare(bv);
+  }
   if (SORT === 'YOE') {
     const x = parseInt(a.Max_Stated_YOE, 10), y = parseInt(b.Max_Stated_YOE, 10);
     const nx = isNaN(x) ? 999 : x, ny = isNaN(y) ? 999 : y;   // n/a sorts last
@@ -557,6 +567,7 @@ function rowEl(j, url, q) {
     `<td><span class="ats">${esc(j.ATS)}</span><span class="co">${hl(j.Company, q)}</span>` +
     (isA ? `<div class="stamp">applied ${fmtDate(applied[url])}</div>` : '') +
     `</td>` +
+    `<td>${j.Posted && j.Posted !== 'n/a' ? esc(j.Posted) : '<span class="na">n/a</span>'}</td>` +
     `<td>${hl(j.Title, q)}</td>` +
     `<td>${hl(j.Location, q)}</td>` +
     `<td class="yoe">${y === 'n/a' ? '<span class="na">n/a</span>' : `<span class="known">${esc(y)} yr</span>`}</td>` +

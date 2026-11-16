@@ -47,18 +47,25 @@ DEFAULTS = {
                               r"|(?:ml|machine learning) (?:engineer|developer|dev))\b",
         "location_include_keywords": [],
         "location_include_regex": r"\b(bengaluru|bangalore|gurgaon|gurugram|india|remote|global"
-                                  r"|anywhere|apac|emea|singapore|bangkok|thailand|amsterdam"
-                                  r"|netherlands|berlin|munich|germany|london|uk|tallinn|estonia"
-                                  r"|dublin|stockholm|tokyo|japan|europe)\b",
+                                  r"|anywhere|apac|singapore|bangkok|thailand|indonesia"
+                                  r"|jakarta|malaysia|kuala lumpur|vietnam|philippines"
+                                  r"|manila|southeast asia)\b",
         "location_exclude_regex": r"\b(us only|us-only|united states only|us-remote|americas only"
                                   r"|canada only|brazil|mexico)\b|remote\s*[(\[]?\s*-?\s*u\.?\.?\.?\s*[)\]]?",
         "max_years_experience": 2,
-        "location_priority_tiers": [["remote", "global", "anywhere"]],
+        "max_age_weeks": 3,
+        "location_priority_tiers": [
+            ["remote", "global", "anywhere"],
+            ["bengaluru", "bangalore", "gurgaon", "gurugram", "india"],
+            ["singapore", "bangkok", "thailand", "southeast asia"],
+        ],
     },
     "boards": {
         "ashby": {"enabled": False, "boards": []},
         "greenhouse": {"enabled": False, "boards": []},
         "lever": {"enabled": False, "boards": []},
+        "consider": {"enabled": False, "boards": []},
+        "allincapital": {"enabled": False, "url": ""},
         "companies": {"keep": [], "drop": []},
     },
     "feeds": {
@@ -146,6 +153,7 @@ EXCLUDE_ROLE_REGEX = re.compile(_pattern(_F, "role_exclude"), re.I)
 LOCATION_REGEX = re.compile(_pattern(_F, "location_include"), re.I)
 EXCLUDE_LOC_REGEX = re.compile(_F.get("location_exclude_regex") or r"$^", re.I)
 MAX_YOE = int(_F.get("max_years_experience", 2))
+MAX_AGE_WEEKS = int(_F.get("max_age_weeks", 3))
 
 STATED_YOE_REGEX = re.compile(
     r"\b(\d{1,2})\s*(?:\+|plus)?\s*(?:to\s*|-|–)?\s*\d{0,2}\s*(?:years?|yrs?)\b",

@@ -57,24 +57,41 @@ role_exclude_keywords = []
 role_exclude_regex = '\b(ios|android|mobile|frontend only|front-end only|account executive|sales|marketing|gtm|recruiter|legal|finance|counsel|designer|copywriter|customer success|support engineer|architect|intern|director|principal|manager|vp|head of|distinguished|lead|senior|sr|staff(?: \w[\w-]*){0,2} engineer|staff sde|staff swe|java|core ml|(?:ml|machine learning) (?:engineer|developer|dev))\b'
 
 # The posting's location must match this AND NOT match location_exclude.
+# Owner is in India: keep India + truly-global remote, plus Southeast Asia.
+# Everything else remote is region-gated and unreachable, so Europe/Japan
+# city words were removed from the include list (they used to pass through
+# the generic `remote` match).
 location_include_keywords = []
-location_include_regex = '\b(bengaluru|bangalore|gurgaon|gurugram|india|remote|global|anywhere|apac|emea|singapore|bangkok|thailand|amsterdam|netherlands|berlin|munich|germany|london|uk|tallinn|estonia|dublin|stockholm|tokyo|japan|europe)\b'
+location_include_regex = '\b(bengaluru|bangalore|gurgaon|gurugram|india|remote|global|anywhere|apac|singapore|bangkok|thailand|indonesia|jakarta|malaysia|kuala lumpur|vietnam|philippines|manila|southeast asia)\b'
 
-# Two branches: the bounded list, and a boundary-free `remote … u.s.` matcher
-# ("Remote (US)" ends on ")" which has no trailing \b — the boundary-free
-# version is required to catch it).
-location_exclude_regex = '\b(us only|us-only|united states only|us-remote|americas only|canada only|brazil|mexico)\b|remote\s*[(\[]?\s*-?\s*u\.?\.?\.?\s*[)\]]?'
+# Same shape as before: one bounded phrase list, plus boundary-free
+# `remote … <region>` branches (a location like "Remote (Europe)" ends on
+# ')' — no trailing \b exists there, so boundaried regexes can't catch it).
+# Branch 2: region written after remote ("Remote (London)", comma added so
+# multi-region GitLab-style locations ("Remote, Canada; Remote, Poland; …")
+# are caught). Branch 3 is the reversed order seen on Ashby ("San Francisco
+# (Remote)", "USA - Remote", "Toronto, CAN (Remote)"): a region word, a
+# separator, ≤6 filler chars, then 'remote'. Branch 4: plain Europe/Americas
+# words, no remote needed (kills on-site EU/LATAM rows). India and SE Asia
+# words are deliberately absent from every branch — those stay allowed.
+location_exclude_regex = '\b(us only|us-only|united states only|us-remote|americas only|canada only|brazil|mexico)\b|remote\s*[(\[]?\s*-?\s*(u\.?\.?\.?\s*[)\]]?|us|usa|u\.?s|united states|north america|south america|latin america|latam|canada|americas?|argentina|colombia|chile|peru|costa rica|brazil|mexico|europe|emea|e\.?u|eea|united kingdom|kingdom|uk|britain|england|scotland|wales|netherlands|dutch|amsterdam|london|belgium|brussels|france|paris|germany|deutschland|berlin|munich|hamburg|frankfurt|austria|vienna|switzerland|zurich|spain|madrid|barcelona|portugal|lisbon|italy|milan|poland|warsaw|krakow|czech|prague|romania|budapest|hungary|greece|malta|ukraine|kyiv|kiev|baltic|estonia|tallinn|latvia|riga|lithuania|vilnius|ireland|dublin|sweden|stockholm|norway|oslo|denmark|copenhagen|finland|helsinki|sofia|tokyo|japan|new york|nyc|san francisco|san mateo|seattle|austin|denver|boston|chicago|los angeles|miami|atlanta|dallas|philadelphia|toronto|vancouver|montreal|belgrade|serbia|zagreb|croatia|washington)\b|\b(us|usa|u\.?s|united states|north america|south america|latin america|latam|canada|americas?|argentina|colombia|chile|peru|costa rica|brazil|mexico|europe|emea|e\.?u|eea|united kingdom|kingdom|uk|britain|england|scotland|wales|netherlands|dutch|amsterdam|london|belgium|brussels|france|paris|germany|deutschland|berlin|munich|hamburg|frankfurt|austria|vienna|switzerland|zurich|spain|madrid|barcelona|portugal|lisbon|italy|milan|poland|warsaw|krakow|czech|prague|romania|budapest|hungary|greece|malta|ukraine|kyiv|kiev|baltic|estonia|tallinn|latvia|riga|lithuania|vilnius|ireland|dublin|sweden|stockholm|norway|oslo|denmark|copenhagen|finland|helsinki|sofia|tokyo|japan|new york|nyc|san francisco|san mateo|seattle|austin|denver|boston|chicago|los angeles|miami|atlanta|dallas|philadelphia|toronto|vancouver|montreal|belgrade|serbia|zagreb|croatia|washington)[^\n]{0,18}[-,;(/]\s*remote\b|\b(europe|emea|e\.?u|eea|united kingdom|kingdom|uk|britain|england|scotland|wales|netherlands|dutch|amsterdam|london|belgium|brussels|france|paris|germany|deutschland|berlin|munich|hamburg|frankfurt|austria|vienna|switzerland|zurich|spain|madrid|barcelona|portugal|lisbon|italy|milan|poland|warsaw|krakow|czech|prague|romania|budapest|hungary|greece|malta|ukraine|kyiv|kiev|baltic|estonia|tallinn|latvia|riga|lithuania|vilnius|ireland|dublin|sweden|stockholm|norway|oslo|denmark|copenhagen|finland|helsinki|sofia|north america|south america|latin america|latam|canada|americas?|argentina|colombia|chile|peru|costa rica|brazil|mexico)\b'
 
 # Years-of-experience cap. Matches description text like "3+ years",
 # "5 years", "3-5 years"; the lower bound is what disqualifies.
 max_years_experience = 2
+
+# Drop postings older than this many weeks (based on the `Posted` date).
+# Rows with no parsable posted date ('n/a') are kept — age is unknown, so
+# we prefer keeping them over dropping live postings. Set to 0 to disable
+# age filtering.
+max_age_weeks = 3
 
 # Sort priority, highest tier first — a posting matching an earlier tier's
 # keyword sorts above later tiers. Order of the outer list is the priority.
 location_priority_tiers = [
     ["remote", "global", "anywhere"],
     ["bengaluru", "bangalore", "gurgaon", "gurugram", "india"],
-    ["bangkok", "singapore", "amsterdam", "berlin", "tallinn", "tokyo", "london"],
+    ["singapore", "bangkok", "thailand", "southeast asia"],
 ]
 
 # -----------------------------------------------------------------------------
@@ -137,8 +154,28 @@ boards = [
     # (bolt/netflix/klarna/revolut/paypay/rakuten/swiggy/groww/zepto/juspay/
     #  cashfree/moengage/clevertap/gupshup 404'd — migrated off Lever;
     #  yellow.ai uses Zoho Recruit — see feeds.zoho_sites)
-    "nium", "finix",
+    "nium", "finix", "paytm",
 ]
+
+# VC portfolio boards hosted on Consider (consider.com). Their pages POST to
+# /api-boards/search-jobs with a session cookie + CSRF token and page via a
+# `sequence` cursor; entries are "board_id | host" (the board id is the
+# `"board":{"id":"..."}` value in the page HTML, the host is where the board
+# lives). No JD text is exposed — the API's computed `minYearsExp` field is
+# gated against [filters].max_years_experience instead.
+[boards.consider]
+enabled = true
+boards = [
+    "lightspeed | jobs.lsvp.com",              # Lightspeed Venture Partners
+    "chiratae | careers.chiratae.com",         # Chiratae Ventures
+    "sequoia-capital-india | careers.peakxv.com",  # Peak XV (ex Sequoia India)
+]
+
+# All In Capital's founders board (founders.allincapital.vc/jobs) embeds its
+# full job list as JSON inside the Next.js page payload. No JD text.
+[boards.allincapital]
+enabled = true
+url = "https://founders.allincapital.vc/jobs"
 
 # Company-level filtering, applied to every source (ATS + aggregator feeds).
 # Match is case-insensitive against the company name shown in the feed — for

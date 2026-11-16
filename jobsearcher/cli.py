@@ -12,10 +12,10 @@ from concurrent.futures import ThreadPoolExecutor
 from .config import (CFG, CONFIG_PATH, MAX_WORKERS, PREVIEW_COUNT,
                      LIVE_FEED_PATH_CFG, _SCRIPT_DIR)
 from .fetch import fetch_json, fetch_text
-from .sources import _zoho_site_entries
+from .sources import _zoho_site_entries, _consider_entries, check_consider, check_allincapital
 from .engine import collect_jobs
 
-CSV_FIELDNAMES = ["ATS", "Company", "Title", "Location", "Max_Stated_YOE",
+CSV_FIELDNAMES = ["ATS", "Company", "Title", "Location", "Posted", "Max_Stated_YOE",
                   "AI_YOE", "AI_Remote", "AI_Salary", "AI_Stack", "AI_Note",
                   "Recommended_PDF", "Direct_Apply_URL"]
 
@@ -42,6 +42,10 @@ def main():
         sources.append("Greenhouse")
     if CFG["boards"]["lever"].get("enabled"):
         sources.append("Lever")
+    if CFG["boards"].get("consider", {}).get("enabled"):
+        sources.append("Consider")
+    if CFG["boards"].get("allincapital", {}).get("enabled"):
+        sources.append("AllIn")
     for name in ("yc", "hn", "remoteok", "weworkremotely", "linkedin", "zoho"):
         if CFG["feeds"][name].get("enabled"):
             sources.append(name)
@@ -141,6 +145,23 @@ def _probe_source_liveness():
 
     def dead(name, err):
         lines.append(f"  dead  {name}: {err[:70] if err else ''}")
+
+    if CFG["boards"].get("consider", {}).get("enabled"):
+        for entry in _consider_entries():
+            try:
+                n = len(check_consider(entry))
+                (alive if n > 0 else dead)(
+                    f"Consider {entry['board_id']}",
+                    "" if n else "0 matching rows (board may be live)")
+            except Exception as e:
+                dead(f"Consider {entry['board_id']}", str(e))
+    allin_cfg = CFG["boards"].get("allincapital", {})
+    if allin_cfg.get("enabled") and allin_cfg.get("url"):
+        try:
+            n = len(check_allincapital(allin_cfg["url"]))
+            (alive if n > 0 else dead)("AllIn Capital", "" if n else "no rows")
+        except Exception as e:
+            dead("AllIn Capital", str(e))
 
     if feeds["yc"].get("enabled"):
         try:

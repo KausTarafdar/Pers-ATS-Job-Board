@@ -1,14 +1,16 @@
 """Run every enabled source concurrently and assemble the tier-sorted feed."""
 
 import re
+from datetime import date, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from .config import CFG, DEDUP, MAX_WORKERS, company_allowed, tier_of
+from .config import CFG, DEDUP, MAX_AGE_WEEKS, MAX_WORKERS, company_allowed, tier_of
 from . import enrich
 from .sources import (check_ashby, check_greenhouse, check_lever,
                       check_ycombinator, check_hn_whoishiring, check_remoteok,
                       check_weworkremotely, check_linkedin, check_zohorecruit,
-                      _zoho_site_entries)
+                      check_consider, check_allincapital,
+                      _zoho_site_entries, _consider_entries)
 
 
 def _norm(text) -> str:
@@ -42,6 +44,36 @@ def dedup_rows(rows: list) -> tuple:
     return kept, len(rows) - len(kept)
 
 
+def filter_by_age(rows: list, max_age_weeks: int) -> list:
+    """Drop postings older than `max_age_weeks`.
+
+    Age is based on the normalized `Posted` field (YYYY-MM-DD) compared to
+    today's date at runtime. Rows with no parsable posted date ('n/a') are
+    kept: age is unknown, so we prefer keeping them rather than silently
+    discarding potentially live postings. Set `max_age_weeks` to 0 or a
+    negative value to disable age filtering.
+    """
+    if not max_age_weeks or max_age_weeks <= 0:
+        return rows
+    cutoff = date.today() - timedelta(weeks=max_age_weeks)
+    kept = []
+    for row in rows:
+        posted = row.get("Posted")
+        if not posted or posted == "n/a":
+            # No parsable posted date — keep the row (age unknown).
+            kept.append(row)
+            continue
+        try:
+            posted_date = date.fromisoformat(str(posted))
+        except ValueError:
+            # Unexpected format — prefer keeping over dropping.
+            kept.append(row)
+            continue
+        if posted_date >= cutoff:
+            kept.append(row)
+    return kept
+
+
 def collect_jobs(prev_jobs: list | None = None):
     """Fetch every enabled source and return the matching rows, tier-sorted.
 
@@ -64,6 +96,11 @@ def collect_jobs(prev_jobs: list | None = None):
         if ats_boards["lever"].get("enabled"):
             for s in ats_boards["lever"].get("boards", []):
                 tasks.append(ex.submit(check_lever, s))
+        for entry in _consider_entries():
+            tasks.append(ex.submit(check_consider, entry))
+        allin_url = ats_boards.get("allincapital", {}).get("url", "")
+        if allin_url:
+            tasks.append(ex.submit(check_allincapital, allin_url))
         tasks.append(ex.submit(check_ycombinator))
         tasks.append(ex.submit(check_hn_whoishiring))
         tasks.append(ex.submit(check_remoteok))
@@ -80,6 +117,8 @@ def collect_jobs(prev_jobs: list | None = None):
 
     if DEDUP:
         all_jobs, _ = dedup_rows(all_jobs)
+
+    all_jobs = filter_by_age(all_jobs, MAX_AGE_WEEKS)
 
     all_jobs.sort(key=lambda j: (j["Tier"], j["Company"], j["Title"]))
 
