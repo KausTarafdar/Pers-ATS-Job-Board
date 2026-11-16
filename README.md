@@ -1,10 +1,12 @@
 # Pers-ATS-Job-Board
 
 Personal job-discovery engine: scrapes public job-posting APIs (Ashby,
-Greenhouse, Lever) plus six no-auth feeds (YC Work at a Startup, HN
-"Who is hiring?", RemoteOK, WeWorkRemotely, LinkedIn guest cards, Zoho
-Recruit sites), filters everything through your personal profile, and
-serves a clickable application tracker.
+Greenhouse, Lever) plus two VC-portfolio boards (Consider platform:
+Lightspeed, Chiratae, Peak XV; All In Capital's founders board), plus six
+no-auth feeds (YC Work at a Startup, HN "Who is hiring?", RemoteOK,
+WeWorkRemotely, LinkedIn guest cards, Zoho Recruit sites), filters
+everything through your personal profile, and serves a clickable
+application tracker.
 
 Stdlib-only Python — no `requirements.txt`, no install step.
 
@@ -33,9 +35,9 @@ key there) and `pip install -r requirements.txt` (single
 package: `google-genai`) to switch on JD enrichment for rows that pass the
 deterministic filters:
 
-- an "Insights" column appears with stated years-of-experience + stance
-  (required/preferred), remote policy (remote-global / remote-region /
-  hybrid / onsite), stated salary, tech-stack keywords and a one-line note.
+- an "Insights" column appears with inline tags: stated years-of-experience,
+  remote policy (remote-global / remote-region / hybrid / onsite) and stated
+  salary — no prose, just the tags.
 - annotations are **advisory only** — they never decide what's in or out;
   the filters in `config.toml` remain the deterministic gate, so an API
   outage can only blank a column, never drop postings.
@@ -59,8 +61,8 @@ Everything tunable lives in **`config.toml`** — the single source of truth:
 | Section    | Controls                                                                 |
 |------------|--------------------------------------------------------------------------|
 | `[profile]` | Personal headline, years-of-experience cap, master resume path         |
-| `[filters]` | Role/location include+exclude regexes (or plain keyword lists), sort priority tiers |
-| `[boards]`  | Per-ATS on/off switches + board slugs; company allow/drop lists         |
+| `[filters]` | Role/location include+exclude regexes (or plain keyword lists), max posting age, sort priority tiers |
+| `[boards]`  | Per-ATS on/off switches + board slugs; Consider + All In Capital VC boards; company allow/drop lists |
 | `[feeds]`   | On/off switches and settings for the six non-ATS sources                |
 | `[run]`     | Duplicate removal, thread count, timeouts, web port, cache TTL, CSV path |
 | `[enrich]`  | Optional AI insights (off unless `GEMINI_API_KEY` + pip install)         |
@@ -70,9 +72,12 @@ everywhere else.
 
 ## Web UI features
 
-- Table of matching roles with source, location, stated max-YOE and a one-click apply link.
-- Optional AI "Insights" badges per row (stated-YOE stance, remote policy, salary,
-  stack, one-line note) — appear when the optional enrichment is configured.
+- Table of matching roles with posting date, location, stated max-YOE and a
+  one-click apply link. Default sort is posting date, newest first.
+- Optional AI "Insights" tags per row (remote policy, salary, stated YOE) —
+  appear when the optional enrichment is configured.
+- Postings older than `[filters].max_age_weeks` are dropped; rows with no
+  parsable date are kept (age unknown).
 - Track applications (✓) and "not for me" (✕) per row — persisted in the browser's
   `localStorage`, surviving restarts; export either list to CSV from the tracker panel.
 - Instant search (`/` to focus) with match highlighting, per-source filter, sortable columns.
